@@ -31,8 +31,7 @@
 
     <packaging>pom</packaging>
 
-    <name>Apache Dubbo Spring Boot Project</name>
-    <description>Apache Dubbo Spring Boot Project</description>
+    <name>Dapeng SOA Spring Boot Project</name>
     <url>https://github.com/apache/dubbo-spring-boot-project</url>
 
     <properties>
