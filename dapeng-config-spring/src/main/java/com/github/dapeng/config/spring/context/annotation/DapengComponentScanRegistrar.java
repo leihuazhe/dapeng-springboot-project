@@ -35,7 +35,7 @@ import java.util.Set;
 import static org.springframework.beans.factory.support.BeanDefinitionBuilder.rootBeanDefinition;
 
 /**
- * Dubbo {@link DapengComponentScan} Bean Registrar
+ * Dapeng {@link DapengComponentScan} Bean Registrar
  *
  * @see com.github.dapeng.config.annotation.DapengService
  */
@@ -43,13 +43,9 @@ public class DapengComponentScanRegistrar implements ImportBeanDefinitionRegistr
 
     @Override
     public void registerBeanDefinitions(AnnotationMetadata importingClassMetadata, BeanDefinitionRegistry registry) {
-
         Set<String> packagesToScan = getPackagesToScan(importingClassMetadata);
 
         registerServiceAnnotationBeanPostProcessor(packagesToScan, registry);
-
-//        registerReferenceAnnotationBeanPostProcessor(registry);
-
     }
 
     /**

@@ -21,10 +21,7 @@ import com.github.dapeng.spring.ServiceBeanProcessorFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeansException;
-import org.springframework.beans.MutablePropertyValues;
 import org.springframework.beans.factory.BeanClassLoaderAware;
-import org.springframework.beans.factory.BeanFactory;
-import org.springframework.beans.factory.BeanFactoryAware;
 import org.springframework.beans.factory.config.*;
 import org.springframework.beans.factory.support.*;
 import org.springframework.context.EnvironmentAware;
@@ -40,7 +37,6 @@ import org.springframework.util.*;
 
 import java.util.*;
 
-import static com.github.dapeng.config.spring.util.AnnotationUtils.of;
 import static org.springframework.beans.factory.support.BeanDefinitionBuilder.rootBeanDefinition;
 import static org.springframework.context.annotation.AnnotationConfigUtils.CONFIGURATION_BEAN_NAME_GENERATOR;
 import static org.springframework.core.annotation.AnnotationUtils.findAnnotation;
@@ -53,7 +49,7 @@ import static org.springframework.util.ClassUtils.resolveClassName;
  * @since 2.5.8
  */
 public class ServiceAnnotationBeanPostProcessor implements BeanDefinitionRegistryPostProcessor, EnvironmentAware,
-        ResourceLoaderAware, BeanClassLoaderAware, BeanFactoryAware {
+        ResourceLoaderAware, BeanClassLoaderAware {
 
     private final Logger logger = LoggerFactory.getLogger(getClass());
 
@@ -64,11 +60,6 @@ public class ServiceAnnotationBeanPostProcessor implements BeanDefinitionRegistr
     private ResourceLoader resourceLoader;
 
     private ClassLoader classLoader;
-
-    /**
-     * hold beanFactory ,real impl is {@link DefaultListableBeanFactory}
-     */
-    private BeanFactory beanFactory;
 
     public ServiceAnnotationBeanPostProcessor(String... packagesToScan) {
         this(Arrays.asList(packagesToScan));
@@ -215,7 +206,7 @@ public class ServiceAnnotationBeanPostProcessor implements BeanDefinitionRegistr
     }
 
     /**
-     * Registers {@link DapengServiceBean} from new annotated {@link DapengService} {@link BeanDefinition}
+     * Registers {@link ServiceBeanProcessorFactory} from new annotated {@link DapengService} {@link BeanDefinition}
      */
     private void registerServiceBean(BeanDefinitionHolder beanDefinitionHolder, BeanDefinitionRegistry registry,
                                      DapengClassPathBeanDefinitionScanner scanner) {
@@ -237,22 +228,6 @@ public class ServiceAnnotationBeanPostProcessor implements BeanDefinitionRegistr
         AbstractBeanDefinition processorDefinition = buildServiceBeanDefinition2(annotatedServiceBeanName);
         String processorBeanName = annotatedServiceBeanName + "_SoaProcessor";
         registerBeanDefinition(processorBeanName, processorDefinition, registry, scanner);
-    }
-
-    /**
-     * Generates the bean name of {@link DapengServiceBean}
-     *
-     * @param service
-     * @param interfaceClass           the class of interface annotated {@link DapengService}
-     * @param annotatedServiceBeanName the bean name of annotated {@link DapengService}
-     * @return ServiceBean@interfaceClassName#annotatedServiceBeanName
-     * @since 2.5.9
-     */
-    private String generateServiceBeanName(DapengService service, Class<?> interfaceClass, String annotatedServiceBeanName) {
-
-        ServiceBeanNameBuilder builder = ServiceBeanNameBuilder.create(service, interfaceClass, environment);
-
-        return builder.build();
     }
 
     private Class<?> resolveServiceInterfaceClass(Class<?> annotatedServiceBeanClass, DapengService service) {
@@ -320,13 +295,6 @@ public class ServiceAnnotationBeanPostProcessor implements BeanDefinitionRegistr
         return resolvedPackagesToScan;
     }
 
-    private AbstractBeanDefinition buildServiceDefinition(Class<?> interfaceClass) {
-
-        BeanDefinitionBuilder builder = rootBeanDefinition(interfaceClass);
-
-        return builder.getBeanDefinition();
-    }
-
     private AbstractBeanDefinition buildServiceBeanDefinition2(String serviceBeanName) {
 
         BeanDefinitionBuilder builder = rootBeanDefinition(ServiceBeanProcessorFactory.class);
@@ -361,91 +329,6 @@ public class ServiceAnnotationBeanPostProcessor implements BeanDefinitionRegistr
         }
     }
 
-    private AbstractBeanDefinition buildServiceBeanDefinition(DapengService service, Class<?> interfaceClass,
-                                                              String annotatedServiceBeanName) {
-
-        BeanDefinitionBuilder builder = rootBeanDefinition(DapengServiceBean.class);
-
-        AbstractBeanDefinition beanDefinition = builder.getBeanDefinition();
-
-        MutablePropertyValues propertyValues = beanDefinition.getPropertyValues();
-
-        String[] ignoreAttributeNames = of("provider", "monitor", "application", "module", "registry", "protocol",
-                "interface", "interfaceName");
-
-        propertyValues.addPropertyValues(new AnnotationPropertyValuesAdapter(service, environment, ignoreAttributeNames));
-
-        // References "ref" property to annotated-@Service Bean
-        addPropertyReference(builder, "ref", annotatedServiceBeanName);
-        // Set interface
-        builder.addPropertyValue("interface", interfaceClass.getName());
-
-        /**
-         * Add {@link com.alibaba.dubbo.config.ProviderConfig} Bean reference
-         */
-        String providerConfigBeanName = service.provider();
-        if (StringUtils.hasText(providerConfigBeanName)) {
-            addPropertyReference(builder, "provider", providerConfigBeanName);
-        }
-
-        /**
-         * Add {@link com.alibaba.dubbo.config.MonitorConfig} Bean reference
-         */
-        String monitorConfigBeanName = service.monitor();
-        if (StringUtils.hasText(monitorConfigBeanName)) {
-            addPropertyReference(builder, "monitor", monitorConfigBeanName);
-        }
-
-        /**
-         * Add {@link com.alibaba.dubbo.config.ApplicationConfig} Bean reference
-         */
-        String applicationConfigBeanName = service.application();
-        if (StringUtils.hasText(applicationConfigBeanName)) {
-            addPropertyReference(builder, "application", applicationConfigBeanName);
-        }
-
-        /**
-         * Add {@link com.alibaba.dubbo.config.ModuleConfig} Bean reference
-         */
-        String moduleConfigBeanName = service.module();
-        if (StringUtils.hasText(moduleConfigBeanName)) {
-            addPropertyReference(builder, "module", moduleConfigBeanName);
-        }
-
-
-        /**
-         * Add {@link com.alibaba.dubbo.config.RegistryConfig} Bean reference
-         */
-        String[] registryConfigBeanNames = service.registry();
-
-        List<RuntimeBeanReference> registryRuntimeBeanReferences = toRuntimeBeanReferences(registryConfigBeanNames);
-
-        if (!registryRuntimeBeanReferences.isEmpty()) {
-            builder.addPropertyValue("registries", registryRuntimeBeanReferences);
-        }
-
-        /**
-         * Add {@link com.alibaba.dubbo.config.ProtocolConfig} Bean reference
-         */
-        String[] protocolConfigBeanNames = service.protocol();
-
-        List<RuntimeBeanReference> protocolRuntimeBeanReferences = toRuntimeBeanReferences(protocolConfigBeanNames);
-
-        if (!protocolRuntimeBeanReferences.isEmpty()) {
-            builder.addPropertyValue("protocols", protocolRuntimeBeanReferences);
-        }
-
-       /* Method[] methods = service.methods();
-        List<MethodConfig> methodConfigs = MethodConfig.constructMethodConfig(methods);
-        if (!methodConfigs.isEmpty()) {
-            builder.addPropertyValue("methods", methodConfigs);
-        }*/
-
-        return builder.getBeanDefinition();
-
-    }
-
-
     private ManagedList<RuntimeBeanReference> toRuntimeBeanReferences(String... beanNames) {
 
         ManagedList<RuntimeBeanReference> runtimeBeanReferences = new ManagedList<RuntimeBeanReference>();
@@ -460,16 +343,8 @@ public class ServiceAnnotationBeanPostProcessor implements BeanDefinitionRegistr
             }
 
         }
-
         return runtimeBeanReferences;
-
     }
-
-    private void addPropertyReference(BeanDefinitionBuilder builder, String propertyName, String beanName) {
-        String resolvedBeanName = environment.resolvePlaceholders(beanName);
-        builder.addPropertyReference(propertyName, resolvedBeanName);
-    }
-
 
     @Override
     public void postProcessBeanFactory(ConfigurableListableBeanFactory beanFactory) throws BeansException {
@@ -489,10 +364,5 @@ public class ServiceAnnotationBeanPostProcessor implements BeanDefinitionRegistr
     @Override
     public void setBeanClassLoader(ClassLoader classLoader) {
         this.classLoader = classLoader;
-    }
-
-    @Override
-    public void setBeanFactory(BeanFactory beanFactory) throws BeansException {
-        this.beanFactory = beanFactory;
     }
 }
